@@ -7,9 +7,8 @@
 
 The simple version
 ## 🚀 Installation
-1. Download the files:PingMonitor.ps1 server.ini RunPingMonitor.bat place the in a folder that is convenient for you, open the server.ini file and edit the ip= and port= fields.
-            
-2.Run the RunPingMonitor.bat file, a command prompt will open and you will receive information about your connection
+##1. Download the files:PingMonitor.ps1 server.ini RunPingMonitor.bat place the in a folder that is convenient for you, open the server.ini file and edit the ip= and port= fields.       
+##2.Run the RunPingMonitor.bat file, a command prompt will open and you will receive information about your connection
 
 Server.ini
     [Server]
@@ -47,5 +46,6 @@ Server.ini
     ; true - show the status
     ; false - do not show
     showStatus=true
+
 
 
