@@ -1,7 +1,8 @@
 import tkinter as tk
+from tkinter import ttk  # добавьте импорт ttk
 from ttkbootstrap import Style
 from ttkbootstrap.constants import *
-from ttkbootstrap.widgets import Entry, Spinbox, Button, Checkbutton
+from ttkbootstrap.widgets import Entry, Spinbox, Checkbutton
 from ping3 import ping
 import threading
 import time
@@ -78,32 +79,26 @@ def monitor_ping():
             }
 
             root.after(0, lambda: update_meter_frame(vals))
-
             log_entry = (f"[{timestamp}] {ip}:{port} | Ping: {ping_display} | PacketLoss: {packet_loss}% | "
                          f"Success: {success_count} | Status: {status_str} | Uptime: {uptime_str} | "
                          f"AvgPing: {round(avg_ping, 2)} ms | TotalPings: {total_pings} | "
                          f"FailCount: {fail_count} | TotalResponseTime: {round(total_response_time,3)} s")
-
             root.after(0, lambda: log_text.insert(tk.END, log_entry + "\n"))
             root.after(0, lambda: log_text.see(tk.END))
             write_log(log_entry)
-
         except Exception as e:
             err = f"Error: {e}"
             root.after(0, lambda: log_text.insert(tk.END, err + "\n"))
             root.after(0, lambda: log_text.see(tk.END))
             write_log(err)
-
         time.sleep(interval)
 
 def update_meter_frame(vals):
     for widget in meter_frame.winfo_children():
         widget.destroy()
-
     keys = [k for k in show_vars if show_vars[k].get()]
     font_style = ("Segoe UI", 14, "bold")
     columns = 3
-
     for i, key in enumerate(keys):
         row = i // columns
         col = i % columns
@@ -133,9 +128,34 @@ def pause_monitor():
     status_indicator.config(text="Paused" if paused else "Running...",
                             foreground="orange" if paused else "#44ff44")
 
+def print_summary():
+    global success_count, fail_count, total_pings, total_response_time
+    if total_pings == 0:
+        summary = "Нет данных для подытоживания."
+    else:
+        avg_response_time = total_response_time / total_pings
+        success_rate = (success_count / total_pings) * 100
+        fail_rate = (fail_count / total_pings) * 100
+
+        summary = (
+            "\n=== Final summary ===\n"
+            f"Total number of pings [Общее количество звонков]: {total_pings}\n"
+            f"Successful pings [Успешные пинги]: {success_count}\n"
+            f"Unsuccessful pings [Неудачные пинги]: {fail_count}\n"
+            f"Success rate [Показатель успеха]: {success_rate:.2f}%\n"
+            f"Percentage of failures [Процент отказов]: {fail_rate:.2f}%\n"
+            f"Average response time [Среднее время отклика]: {avg_response_time*1000:.2f} ms\n"
+        )
+    write_log(summary)
+    root.after(0, lambda: log_text.insert(tk.END, summary + "\n"))
+    root.after(0, lambda: log_text.see(tk.END))
+
 def stop_monitor():
     global running
     running = False
+    # Перед завершением выводим итог
+    print_summary()
+    log_text.delete('1.0', tk.END)
     status_indicator.config(text="Stopped", foreground="red")
 
 # --- UI ---
@@ -144,6 +164,19 @@ root = style.master
 root.title("Ping Monitor")
 root.geometry("1000x700")
 root.configure(bg=BG_COLOR)
+root.iconbitmap('C:/CPingMonitorApp/ftm.ico')
+
+# Создаем стиль для кастомной полосы прокрутки
+style.configure("Custom.Vertical.TScrollbar",
+                gripcount=0,
+                background="#AAAAAA",
+                troughcolor=BG_COLOR,
+                bordercolor=BG_COLOR,
+                arrowcolor="#AAAAAA",
+                width=8)
+
+# Ограничиваем минимальный размер окна
+root.minsize(820, 580)
 
 show_vars = {
     "Ping": tk.BooleanVar(value=True),
@@ -186,9 +219,19 @@ interval_spinbox = Spinbox(controls_frame, from_=1, to=60, width=5)
 interval_spinbox.set("2")
 interval_spinbox.grid(row=1, column=5)
 
-Button(controls_frame, text="Start", command=start_monitor, bootstyle="success-outline", width=10).grid(row=1, column=6, padx=(10, 0))
-Button(controls_frame, text="Pause", command=pause_monitor, bootstyle="warning-outline", width=10).grid(row=1, column=7)
-Button(controls_frame, text="Stop", command=stop_monitor, bootstyle="danger-outline", width=10).grid(row=1, column=8)
+def create_rounded_button(parent, text, command):
+    btn = tk.Button(parent, text=text, command=command,
+                    bg="#28a745", fg="white",
+                    relief="flat", padx=10, pady=5,
+                    bd=0, highlightthickness=0)
+    return btn
+
+start_button = create_rounded_button(controls_frame, "Start", start_monitor)
+start_button.grid(row=1, column=6, padx=(10, 0))
+pause_button = create_rounded_button(controls_frame, "Pause", pause_monitor)
+pause_button.grid(row=1, column=7)
+stop_button = create_rounded_button(controls_frame, "Stop", stop_monitor)
+stop_button.grid(row=1, column=8)
 
 status_indicator = tk.Label(controls_frame, text="Stopped", fg="red", bg=BG_COLOR, font=("Segoe UI", 10, "bold"))
 status_indicator.grid(row=1, column=9, sticky="e", padx=10)
@@ -220,7 +263,7 @@ for i, key in enumerate(show_vars):
                      bootstyle="info-round-toggle", width=14)
     cb.grid(row=row, column=col, sticky="w", padx=4, pady=2)
 
-# --- Log ---
+# --- Лог ---
 tk.Label(mainframe, text="📜 Log", font=("Segoe UI", 14, "bold"), bg=BG_COLOR, fg=FG_COLOR)\
     .grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
@@ -229,13 +272,31 @@ log_container.grid(row=3, column=0, columnspan=2, sticky="nsew")
 log_container.columnconfigure(0, weight=1)
 log_container.rowconfigure(0, weight=1)
 
+# Создайте Text-виджет для логов
 log_text = tk.Text(log_container, height=15, wrap="word", font=("Consolas", 10),
                    bg="#1e1e1e", fg="#00ff00", insertbackground="#00ff00")
 log_text.grid(row=0, column=0, sticky="nsew")
 
-scrollbar = tk.Scrollbar(log_container, command=log_text.yview)
+# Создайте стиль для кастомной полосы прокрутки
+style = Style(theme="darkly")
+style.configure("Custom.Vertical.TScrollbar",
+                gripcount=0,
+                background="#AAAAAA",
+                troughcolor=BG_COLOR,
+                bordercolor=BG_COLOR,
+                arrowcolor="#AAAAAA",
+                width=8)
+
+# Используем ttk.Scrollbar с нашим стилем
+scrollbar = ttk.Scrollbar(log_container, style="Custom.Vertical.TScrollbar", command=log_text.yview)
 scrollbar.grid(row=0, column=1, sticky='ns')
+
+# Связываем прокрутку с Text
 log_text.config(yscrollcommand=scrollbar.set)
 
 on_check_change()
+# Добавляем подпись справа вверху
+author_label = tk.Label(root, text="by HAN & [KOTE]", font=("Arial", 8, "bold"), bg=BG_COLOR, fg="#888888")
+author_label.pack(side="bottom", anchor="w", padx=10, pady=4)
+
 root.mainloop()
